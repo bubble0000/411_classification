@@ -1,16 +1,21 @@
+mode: train
+
 model:
-  arch: vgg16
+  arch: resnet34
   kwargs:
     num_classes: 300
 
 epoch: 45
 work_dir: ./experiment/test/
 resume: False
+ckpt_peroid: 5
+test_period: 1
+
 
 pretrain:
   load_pretrained: True
-  ignore: []
-  pretrained_path: experiment/test/pretrain/vgg16-397923af.pth
+  ignore: [fc.weight,fc.bias]
+  pretrained_path: experiment/test/pretrain/resnet34-b627a593.pth
 
 datasets:
   batch_size: 16
@@ -18,11 +23,11 @@ datasets:
     train:
       type: transform_train
       kwargs:
-        size: [160,160]
+        size: [224,224]
     test:
       type: transform_test
       kwargs:
-        size: [160,160]
+        size: [224,224]
   train:
     type: VGGDataset
     kwargs:
@@ -33,7 +38,6 @@ datasets:
     kwargs:
       train: False
       test_path: /media/a/新加卷/classnet/wenwu/test_data
-
 
 criterion:
   type: Criterion
@@ -74,7 +78,6 @@ torch2onnx:
    batch_size: 1
    save_filename: resnet.onnx
 
-
 onnx_trt:
    fp16_mode: False
    int8_mode: True
@@ -85,7 +88,6 @@ onnx_trt:
    test_image_path: ./deploy/test.jpg
    calib_images_dir: /media/a/新加卷/classnet/wenwu/test/0  #绝对路径
    cache_filename: resnet.cache
-
 
 review:
    image_path: ../test1.jpg
