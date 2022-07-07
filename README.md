@@ -1,8 +1,12 @@
-### Introduction
+## Introduction
+
+------
 
 #####          **411_classfication**是一个统一的分类网络框架，可用于各种分类网络的训练、测试，并且可完成`pytorch->onnx->tensorrt`路线的模型转换。
 
-### Requirements
+## Requirements
+
+------
 
 #####           **python 3.6+**
 
@@ -12,13 +16,17 @@
 
 #####           tensorrt 5.1.5.0
 
-### Usage
+## Usage
 
-####        Train 
+------
+
+###        **Train** 
 
 #####                   `sh experiment/test/train.sh`
 
-####        Evaluate Model
+
+
+###        Evaluate Model
 
 #####                     默认测试`config.yaml`中`work_dir`参数对应的文件夹下保存的所有模型在验证集上的效果。如果  `deploy.onnx`和`deploy.tensorrt`均设置为True，在验证集上指标最高的模型将进行模型转换**。**
 
@@ -26,19 +34,25 @@
 
 #####                     `python main.py --config_path <config_path>`
 
-####        Run tensorrt model
+
+
+###        Run tensorrt model
 
 #####                     基于`tensorrt`进行模型推理，首先将`config.yaml`中的`mode`参数设置为`tensorrt`，运行:
 
 #####                     `python main.py --config_path <config_path>`
 
-####        Demo
+
+
+###        Demo
 
 #####                     测试单张图片在某个模型上的效果。
 
 #####                     `python demo.py  --config_path <config_path> --model_path <model_path> --image_path  <image_path>`
 
-####        Review
+
+
+###        Review
 
 #####                     查看训练模型的特定网络层的类别激活图，具体的网络层及输入图片在`config.yaml`中配置。
 
