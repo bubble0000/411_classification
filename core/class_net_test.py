@@ -1,19 +1,11 @@
-import sys
 import torch
-import os
-import cv2
-from torchvision import transforms
 import time
 import numpy as np
 import heapq
-from torch.utils.data import Dataset, DataLoader
-from collections import defaultdict
+from torch.utils.data import DataLoader
 
 from model import build_model
 from datasets import build_dataset, build_aug
-from utils.optimizer import build_optimizer
-from utils.scheduler import get_scheduler
-from utils.criterion import build_criterion
 
 
 class class_net_test(object):
@@ -21,7 +13,7 @@ class class_net_test(object):
         self.config = config
         self.creat_dataset(self.config.datasets)
         self.creat_model(self.config.model)
-        self.load_model(self.config, model_path)
+        self.load_model(model_path)
 
     def creat_model(self, config):
         print("creating model")
@@ -36,34 +28,14 @@ class class_net_test(object):
         self.data_loader = DataLoader(self.dataset_test, batch_size=1, shuffle=False)
 
 
-    def load_model(self,config,model_path):
-        print("loading")
+    def load_model(self,model_path):
+        print("loading model")
         dic = torch.load(model_path, map_location=lambda storage, loc: storage)
         self.model.load_state_dict(dic['net'])
         self.model.cuda()
         self.model.eval()
 
-    # def load_pretrained(self, config, model_path):
-    #     print("loading")
-    #     config = config.pretrain
-    #     if config.load_all_model:
-    #         dic = torch.load(model_path, map_location=lambda storage, loc: storage)
-    #         self.model.load_state_dict(dic)
-    #     else:
-    #         model_dict = self.model.state_dict()
-    #         pretrained = torch.load(model_path)
-    #         pretrained_dict = {}
-    #         for k in pretrained.keys():
-    #             if k in config.ignore:
-    #                 continue
-    #             pretrained_dict.update({k: pretrained[k]})
-    #         model_dict.update(pretrained_dict)
-    #         self.model.load_state_dict(model_dict)
-    #     self.model.cuda()
-    #     self.model.eval()
-
-    def test_img(self, img, score_thr):
-        # img_test = torch.unsqueeze(img, 0)
+    def test_img(self, img, score_thr=0.5):
         output = self.model(img)
 
         output_max = torch.max(torch.softmax(output, 1), 1)
@@ -89,7 +61,7 @@ class class_net_test(object):
         return acc
 
     def calc_class_fp(self, labels, pred_labels, cls):
-        ###just test for two classes:2and 268
+        ###just test for two classes:2 and 268
 
         # cls = ['266','268']
         cls_fp = [[] for i in range(len(cls))]
@@ -110,10 +82,6 @@ class class_net_test(object):
             label_pred[l] += 1
         for l in pred_labels[pred_labels == labels]:
             label_tp[l] += 1
-        print(label_gt)
-        print(label_tp)
-        print(label_pred)
-
         return label_gt, label_pred, label_tp
 
     def calc_prec_rec(self, labels, pred_labels):
@@ -124,14 +92,10 @@ class class_net_test(object):
         index = [i for i in range(len(self.class_idx_dict))]
         class_index = list(map(self.class_idx_dict.get, index))
 
-        print("index", index)
-        print("class_index", class_index)
-
         score_thresh = np.arange(0, 1.05, 0.05)
         prec_thresh_num = np.array([0] * len(score_thresh))
         for i in range(1, len(score_thresh)):
             res = prec <= score_thresh[i]
-            print("res", res)
 
             temp = np.sum(res) - np.sum(prec_thresh_num[:i])
             prec_thresh_num[i - 1] += temp
@@ -181,8 +145,6 @@ class class_net_test(object):
         self.class_idx_dict_cover = self.dataset_train.img_datas.class_to_idx
         self.class_idx_dict = {k: v for v, k in self.class_idx_dict_cover.items()}
 
-        # print(self.class_idx_dict)
-
         labels = []
         pred_labels = []
         doubt_labels = []
@@ -190,8 +152,6 @@ class class_net_test(object):
 
         for i, data in enumerate(self.data_loader, 0):
             img, label, _ = data
-            img = torch.autograd.Variable(img).cuda()
-            label = torch.autograd.Variable(label).cuda()
 
             start = time.time()
             s, doubt, res = self.test_img(img, score_thr=self.config.evaluation.con_thr)
@@ -209,27 +169,16 @@ class class_net_test(object):
                 top3_i = []
                 for temp in s[i]:
                     top3_i.append(self.class_idx_dict[temp])
-                # print("image: ",_[i].split("/")[-1]," if doubt: ",doubt[i], " top-3: ",top3_i)
-                print("image: ", _[i], " if doubt: ", doubt[i], " top-3: ", top3_i)
 
         labels = np.array(labels)
         pred_labels = np.array(pred_labels)
         doubt_labels = np.array(doubt_labels)
 
-        # cls = ['266','268']
-        # num_fp = self.calc_class_fp(labels,pred_labels,cls)
-        # _gt,_,_tp = self.calc_category_tp(labels,pred_labels)
-        # for _c in cls:
-        #     print(_c,num_fp[cls.index(_c)],_gt[self.class_idx_dict_cover[_c]],_tp[self.class_idx_dict_cover[_c]])
-
         metric_dict = dict()
 
         if config.evaluation.accuracy:
             acc = self.calc_acc(labels, pred_labels)
-
             metric_dict['acc'] = acc
-
-            print("acc: ", acc)
 
         if config.evaluation.category_prec_rec:
             prec_sort, rec_sort, prec_thresh_num = self.calc_prec_rec(labels, pred_labels)
@@ -238,16 +187,10 @@ class class_net_test(object):
             metric_dict['rec_class'] = rec_sort
             metric_dict['prec_thresh_num'] = prec_thresh_num[:-1].tolist()
 
-            print("prec: ", prec_sort)
-            print("rec: ", rec_sort)
-            print("prec_thresh_num: ", prec_thresh_num[:-1])
-
         if config.evaluation.doubt_ratio:
             doubt_ratio = self.calc_doubt_ratio(labels, doubt_labels)
 
             metric_dict['doubt_ratio'] = doubt_ratio
-
-            print("doubt_ratio: ", doubt_ratio)
 
         if config.evaluation.F_score > 0:
             a = config.evaluation.F_score
@@ -256,14 +199,9 @@ class class_net_test(object):
             metric_dict['macro_f_score'] = macro_f_score
             metric_dict['micro_f_score'] = micro_f_score
 
-            print("a = ", a, " macro_f_score: ", macro_f_score)
-            print("a = ", a, " micro_f_score: ", micro_f_score)
-
         if config.evaluation.Kappa:
             K = self.calc_kappa(labels, pred_labels)
 
             metric_dict['kappa'] = K
-
-            print("kappa: ", K)
 
         return metric_dict, time_consume
