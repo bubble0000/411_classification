@@ -1,55 +1,56 @@
-**Introduction**
+### Introduction
 
-​     该存储库是一个分类网络框架，通过增加具体的网络结构代码，即可进行训练。同时，还包含了`torch->onnx->tensorrt`的部署过程。
+#####          **411_classfication**是一个统一的分类网络框架，可用于各种分类网络的训练、测试，并且可完成`pytorch->onnx->tensorrt`路线的模型转换。
 
-**Environment**
+### Requirements
 
-​     `torch 1.2.0`
+#####           **python 3.6+**
 
-​     `onnx 1.4.0`
+#####           **torch 1.5.0+**
 
-​     `tensorrt 5.1.5.0`
+#####           onnx 1.4.0
 
-​     `cuda 10.1`
+#####           tensorrt 5.1.5.0
 
-​     `cudnn 7.6.5`
+### Usage
 
-​     other dependencies in requirements.txt
+####        Train 
 
-**How to use**
+#####                   `sh experiment/test/train.sh`
 
-​    **train**
+####        Evaluate Model
 
-​        设置`experiment/test/config.yaml`中的`mode`参数为`train`,以及一些训练相关参数，如`model`，`datasets`等
+#####                     默认测试`config.yaml`中`work_dir`参数对应的文件夹下保存的所有模型在验证集上的效果。如果  
 
-​              `python main.py --config_path <PATH>`
+#####           `deploy.onnx`和`deploy.tensorrt`均设置为True，在验证集上指标最高的模型将进行模型转换**。**
 
-​       在`deploy`文件夹默认生成`log.txt`，保存了本次训练的loss日志
+#####                     首先将`config.yaml`中的`mode`参数设置为`evaluate`，然后运行
 
-​    **test**
+#####                     `python main.py --config_path <config_path>`
 
-​        这个过程从训练过程中保存的checkpoint模型中选择在某些指标上表现最好的模型，并可以通过配置`config.yaml`继续将该模型以`pytorch->onnx->tensorrt`的路线进行一步步的转换。
+####        Run tensorrt model
 
-​        设置`experiment/test/config.yaml`中的`mode`参数为`test`,以及配置deploy项确定是否转换到`onnx`及`tensorrt`
+#####                     基于`tensorrt`进行模型推理，首先将`config.yaml`中的`mode`参数设置为`tensorrt`，运行
 
-​           `python main.py --config_path <PATH>`  
+#####                     `python main.py --config_path <config_path>`
 
-​        在当前路径下默认生成data.txt，描述网络结构和测试结果。
+####        Demo
 
-​    **test one model**
+#####                     测试单张图片在某个模型上的效果
 
-​       在`config.yaml`中配置相应的图片文件夹路径
+#####                     `python demo.py  --config_path <config_path> --model_path <model_path> --image_path  <image_path>`
 
-​           `python demo.py  --config_path <PATH> --model_path <MODEL_PATH>`
+####        Review
 
-​    **tensorrt推理**
+#####                     查看训练模型的特定网络层的类别激活图，具体的网络层及输入图片在`config.yaml`中配置。
 
-​       在`config.yaml`中设置`mode`参数为`trt`,并设置`trt`文件的路径（`engine_file_path`）及测试图片的路径（`test_image_path`）
+#####                     `cd review`
 
-​          `python main.py --config_path <PATH>`                    
+#####                     `python review.py --config_path <config_path>`
 
-​       
 
-​           
 
-​    
+​                   
+
+​      
+
