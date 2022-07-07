@@ -1,33 +1,19 @@
-import cv2
 import os
-import numpy as np
-from torch.utils import data
-from PIL import Image
-from torchvision import transforms
-from torchvision import datasets
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from torch import optim
-from torch.optim import lr_scheduler
 import time
+from tqdm import tqdm
+import numpy as np
 
-from model import build_model
-from datasets import build_dataset,build_aug
-from utils.optimizer import build_optimizer
-from utils.scheduler import get_scheduler
-from utils.criterion import build_criterion
 from core.class_net_train import class_net_train
 from core.model_state_dict import densenet_state_dict,model_state_dict
 from utils.logger import Logger
-from tqdm import tqdm
 
 
-class classnet_train(class_net_train):
+class model_train(class_net_train):
     def __init__(self,config,log_path):
         super().__init__(config)
-        self.start_epoch = -1
 
+        self.start_epoch = -1
         if self.resume_model():
             print("resume model!")
         elif config.pretrain.load_pretrained:
@@ -45,31 +31,47 @@ class classnet_train(class_net_train):
         self.model.load_state_dict(state_dict,strict=False)
         self.model.cuda()
 
-
     def resume_model(self):
         if self.config.resume:
             models_path = os.path.join(self.config.work_dir,'models')
             models = os.listdir(models_path)
             models.sort(key=lambda x:int(x[:-4]))
+
             if len(models):
                 latest_checkpoint_path = os.path.join(models_path,models[-1])
-                print(latest_checkpoint_path)
+                print("resume " + str(latest_checkpoint_path))
                 checkpoint = torch.load(latest_checkpoint_path)
                 self.model.load_state_dict(checkpoint['net'])
                 self.optimizer.load_state_dict(checkpoint['optimizer'])
                 self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
                 self.start_epoch = checkpoint['epoch']
-
                 return True
         return False
 
+    def validate(self):
+        self.model.eval()
+        image_labels = []
+        pred_labels = []
+
+        for i,data in tqdm(enumerate(self.val_dataloader,0)):
+            images,labels,image_names = data
+            outputs = self.model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            for l in labels:
+                image_labels.append(l.cpu().numpy())
+            for pred_l in predicted:
+                pred_labels.append(pred_l.cpu().numpy())
+
+        image_labels = np.array(image_labels)
+        pred_labels = np.array(pred_labels)
+        acc = np.sum(image_labels == pred_labels) / image_labels.shape[0]
+        return acc
 
     def train(self):
-        print(self.dataset_train.img_datas.class_to_idx)
-        print("training")
+        print("start training")
         for epo in range(self.start_epoch + 1,self.config.epoch):
             self.lr_scheduler.step()
-            time_start=time.time()
+            time_start = time.time()
             for i, data in enumerate(self.data_loader, 0):
                 self.model.train()
                 inputs, y,_ = data
@@ -80,8 +82,11 @@ class classnet_train(class_net_train):
                 y = y.cuda()
 
                 self.optimizer.zero_grad()
-                outputs=self.model(inputs)
+                outputs = self.model(inputs)
                 loss = self.criterion(outputs, y)
+
+                loss.backward()
+                self.optimizer.step()
 
                 if epo == 0 and i == 0:
                     self.logger.info("Train config: ")
@@ -95,12 +100,15 @@ class classnet_train(class_net_train):
                 self.logger.info("Loss: epoch: " + str(epo) + " iter_num: " + str(i) + " loss: " + str(loss.item()))
                 print("Loss: ",str(loss.item()))
 
-                loss.backward()
-                self.optimizer.step()
+            time_end = time.time()
+            self.logger.info("epoch training time: " + str(time_end - time_start))
 
-            print(self.optimizer)
-            if epo%5==1:
-                model_save_dir = self.config.work_dir + 'models/'
+            if epo % self.config.test_peroid == 0:
+                acc = self.validate()
+                self.logger.info("Val accuracy: " + str(acc))
+
+            if epo % self.config.ckpt_peroid == 0:
+                model_save_dir = os.path.join(self.config.work_dir,'models/')
                 if not os.path.exists(model_save_dir):
                     os.mkdir(model_save_dir)
 
@@ -112,7 +120,4 @@ class classnet_train(class_net_train):
                 }
 
                 torch.save(checkpoint,model_save_dir + "%s.pth" % str(epo))
-                # torch.save(self.model.state_dict(), model_save_dir + str(epo)+'.pkl')
-                # torch.save(self.model, model_save_dir + str(epo)+'.pth')
-            time_end=time.time()
-            print(time_end-time_start)
+
